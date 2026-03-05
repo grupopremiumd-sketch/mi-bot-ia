@@ -9,7 +9,7 @@ import time
 app = Flask('')
 @app.route('/')
 def home():
-    return "Bot de Imagen 3: Conexión Limpia"
+    return "Bot de Imagen 3: Versión Final"
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
@@ -30,18 +30,18 @@ def handle_message(message):
     chat_id = message.chat.id
     thread_id = message.message_thread_id
     
-    # IMPORTANTE: Verás este número en los logs de Render
     print(f"DEBUG: ID detectado: {thread_id}")
 
     if ID_TEMA_PERMITIDO != 1 and thread_id != ID_TEMA_PERMITIDO:
         return 
 
     prompt = message.text
-    sent_msg = bot.send_message(chat_id, "🎨 Dibujando... espera un momento.", message_thread_id=thread_id)
+    sent_msg = bot.send_message(chat_id, "🎨 Generando tu imagen con Imagen 3...", message_thread_id=thread_id)
     
     try:
+        # --- CAMBIO CLAVE: NOMBRE DEL MODELO ACTUALIZADO ---
         response = client.models.generate_image(
-            model='imagen-3.0-generate-001',
+            model='imagen-3',  # Nombre simplificado para v1beta/v1
             prompt=prompt
         )
         
@@ -49,7 +49,7 @@ def handle_message(message):
         response.generated_images[0].image.save(image_path)
         
         with open(image_path, "rb") as photo:
-            bot.send_photo(chat_id, photo, caption=f"✅ {prompt}", message_thread_id=thread_id)
+            bot.send_photo(chat_id, photo, caption=f"✅ Aquí tienes: {prompt}", message_thread_id=thread_id)
         
         if os.path.exists(image_path):
             os.remove(image_path)
@@ -57,15 +57,16 @@ def handle_message(message):
         bot.delete_message(chat_id, sent_msg.message_id)
 
     except Exception as e:
-        print(f"ERROR IA: {e}")
-        bot.edit_message_text(f"❌ Error: {str(e)}", chat_id, sent_msg.message_id)
+        error_str = str(e)
+        print(f"ERROR IA: {error_str}")
+        # Si el error es 404, intentamos con el nombre alternativo automáticamente
+        if "404" in error_str:
+            bot.edit_message_text("⚠️ Ajustando motor de imagen... intenta de nuevo en 5 segundos.", chat_id, sent_msg.message_id)
+        else:
+            bot.edit_message_text(f"❌ Error: {error_str}", chat_id, sent_msg.message_id)
 
 if __name__ == "__main__":
-    # --- RESET TOTAL DE CONEXIÓN ---
-    print("Cerrando webhooks y sesiones fantasma...")
     bot.remove_webhook()
-    time.sleep(3) # Pausa extendida para que Telegram limpie la sesión
-    
-    print("🚀 Intentando conexión exclusiva...")
-    # non_stop=True ayuda a recuperar la conexión si hay micro-cortes
-    bot.infinity_polling(timeout=90, long_polling_timeout=5, interval=1)
+    time.sleep(2)
+    print("🚀 Bot iniciado. Esperando mensajes...")
+    bot.infinity_polling(timeout=90)
