@@ -9,7 +9,7 @@ import time
 app = Flask('')
 @app.route('/')
 def home():
-    return "Bot de Imagen 3: Versión Estable"
+    return "Bot de Imagen 3: Modo Multi-Fallo"
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
@@ -31,37 +31,45 @@ def handle_message(message):
     thread_id = message.message_thread_id
     
     print(f"DEBUG: ID detectado: {thread_id}")
-
     if ID_TEMA_PERMITIDO != 1 and thread_id != ID_TEMA_PERMITIDO:
         return 
 
     prompt = message.text
-    sent_msg = bot.send_message(chat_id, "🎨 Generando imagen... esto puede tardar unos segundos.", message_thread_id=thread_id)
+    sent_msg = bot.send_message(chat_id, "🎨 Intentando generar imagen...", message_thread_id=thread_id)
     
-    try:
-        # --- NOMBRE DEL MODELO CORREGIDO ---
-        response = client.models.generate_image(
-            model='imagen-3.0-generate-001', 
-            prompt=prompt
-        )
-        
-        image_path = f"img_{chat_id}.png"
-        response.generated_images[0].image.save(image_path)
-        
-        with open(image_path, "rb") as photo:
-            bot.send_photo(chat_id, photo, caption=f"✅ {prompt}", message_thread_id=thread_id)
-        
-        if os.path.exists(image_path):
-            os.remove(image_path)
-        bot.delete_message(chat_id, sent_msg.message_id)
-
-    except Exception as e:
-        print(f"ERROR DETALLADO: {e}")
-        bot.edit_message_text(f"❌ Error: {str(e)}", chat_id, sent_msg.message_id)
+    # Lista de nombres posibles del modelo (Google los cambia según la cuenta)
+    modelos_a_probar = ['imagen-3.0-generate-002', 'imagen-3.0-generate-001', 'imagen-3']
+    
+    exito = False
+    for modelo in modelos_a_probar:
+        try:
+            print(f"Probando modelo: {modelo}")
+            response = client.models.generate_image(
+                model=modelo,
+                prompt=prompt
+            )
+            
+            image_path = f"img_{chat_id}.png"
+            response.generated_images[0].image.save(image_path)
+            
+            with open(image_path, "rb") as photo:
+                bot.send_photo(chat_id, photo, caption=f"✅ Generada con {modelo}", message_thread_id=thread_id)
+            
+            if os.path.exists(image_path):
+                os.remove(image_path)
+            bot.delete_message(chat_id, sent_msg.message_id)
+            exito = True
+            break # Si funciona, salimos del bucle
+            
+        except Exception as e:
+            print(f"Fallo con {modelo}: {e}")
+            continue # Si falla, prueba el siguiente
+            
+    if not exito:
+        bot.edit_message_text("❌ Google aún no ha activado Imagen 3 en tu cuenta/región. Revisa tu consola de Google Cloud.", chat_id, sent_msg.message_id)
 
 if __name__ == "__main__":
-    # Limpieza de conexión para evitar el error 409
     bot.remove_webhook()
     time.sleep(2)
-    print("🚀 Bot iniciado. Si ves errores 404, revisa los logs de Render.")
+    print("🚀 Bot en modo prueba de modelos iniciado.")
     bot.infinity_polling(timeout=90)
